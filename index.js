@@ -60,21 +60,6 @@ module.exports = function Manapotter(dispatch) {
 				}
 			}
 
-			useItem()
-		}
-
-		if (highUse) {
-
-			if(!cooldown && event.target.equals(cid) && (currentMp <= maxMp - 1000)) {
-				useItem()
-			}
-
-		} else {
-
-			if(!cooldown && event.target.equals(cid) && (currentMp <= maxMp*ratio)) {
-				useItem()
-			}
-
 		}
 
 	})
