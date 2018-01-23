@@ -1,7 +1,10 @@
 const HIGHUSEJOBS = [0,1,4,8] // WARR LANC SORC REAPER, ADD YOUR CLASS JOB # IF YOU WANT THE HIGHER THRESHOLD TO TRIGGER
+const MPCD = 10000; // in ms
+const Command = require('command');
 
 module.exports = function Manapotter(dispatch) {
 
+	const command = Command(dispatch);
 	let cid = null,
 		player = '',
 		cooldown = false,
@@ -14,7 +17,13 @@ module.exports = function Manapotter(dispatch) {
 		inCombat,
 		job,
 		highUse = false,
-		ratio = 0.5
+		sorc = false,
+		ratio = 0.5,
+		curMp = null,
+		maxMp = null,
+		threshold = 0,
+		isSet = false;
+
 
 	// #############
 	// ### Magic ###
@@ -24,13 +33,19 @@ module.exports = function Manapotter(dispatch) {
 		({cid, model} = event)
 		player = event.name
 		job = (model - 10101) % 100;
-		if (HIGHUSEJOBS.includes(job)) {
+		if (job == 4) {
+			sorc = true;
+		} else if (HIGHUSEJOBS.includes(job)) {
 			highUse = true;
+			sorc = false;
 		} else {
 			highUse = false;
+			sorc = false;
 		}
 		enabled = true
 	})
+
+	dispatch.hook('C_PLAYER_LOCATION', 1, event =>{location = event})
 
 	dispatch.hook('S_START_COOLTIME_ITEM', 1, event => {
 		let item = event.item
@@ -40,29 +55,39 @@ module.exports = function Manapotter(dispatch) {
 			cooldown = true
 			setTimeout(() => {
 				cooldown = false
-			}, thiscooldown*1000)
+				checkMp();
+			}, MPCD)
 		}
 	})
 
 	dispatch.hook('S_PLAYER_CHANGE_MP', 1, event => {
-		currentMp = event.currentMp
-		maxMp = event.maxMp
 
-		if(!cooldown && event.target.equals(cid)) {
-
-			if (highUse) {
-				if (currentMp <= maxMp - 1000) {
-					useItem()
-				}
-			} else {
-				if (currentMp <= maxMp*ratio) {
-					useItem()
-				}
-			}
-
+		if (event.target.equals(cid)) {
+			curMp = event.curMp;
+			maxMp = event.maxMp;
+			if (enabled) checkMp();
 		}
 
 	})
+
+	function checkMp() {
+
+		if (!isSet) {
+			
+			threshold = maxMp / 2;
+			if (sorc) threshold = maxMp - 1600;
+			else if (highUse) threshold = maxMp - 1000;
+			else threshold = maxMp * ratio;
+
+			isSet = true;
+		}
+
+
+		if (!cooldown && curMp <= threshold) {
+			useItem();
+		}
+
+	}
 
 	function useItem() {
 		if (!enabled) return
@@ -78,10 +103,10 @@ module.exports = function Manapotter(dispatch) {
 				unk5: 0,
 				unk6: 0,
 				unk7: 0,
-				x: 0,
-				y: 0,
-				z: 0,
-				w: 0,
+				x: location.x1,
+        y: location.y1,
+        z: location.z1,
+        w: location.w,
 				unk8: 0,
 				unk9: 0,
 				unk10: 0,
@@ -99,6 +124,7 @@ module.exports = function Manapotter(dispatch) {
 		onmount = false
 		incontract = false
 		inbattleground = event.zone == battleground
+		isSet = false;
 	})
 
 	dispatch.hook('S_SPAWN_ME', 1, event => {
@@ -135,49 +161,19 @@ module.exports = function Manapotter(dispatch) {
 	// ### Chat Hook ###
 	// #################
 
-	dispatch.hook('C_WHISPER', 1, (event) => {
-		if(event.target.toUpperCase() === "!manapotter".toUpperCase()) {
-			if (/^<FONT>on?<\/FONT>$/i.test(event.message)) {
-				enabled = true
-				message('Manapotter <font color="#56B4E9">enabled</font>.')
-			}
-			else if (/^<FONT>off?<\/FONT>$/i.test(event.message)) {
-				enabled = false
-				message('Manapotter <font color="#E69F00">disabled</font>.')
-			}
-			else message('Commands:<br>'
-								+ ' "on" (enable Manapotter),<br>'
-								+ ' "off" (disable Manapotter)'
-						)
-			return false
-		}
-	})
+	command.add('mPots', (arg) => {
+		switch (arg) {
+			case 'on':
+				enabled = true;
+				break;
+			case 'off':
+				enabled = false;
+				break;
+			default:
+				enabled = !enabled;
+				break;
+		} command.message('Manapotter ' + (enabled ? 'enabled' : 'disabled') + '.');
 
-	function message(msg) {
-		dispatch.toClient('S_WHISPER', 1, {
-			player: cid,
-			unk1: 0,
-			gm: 0,
-			unk2: 0,
-			author: '!Manapotter',
-			recipient: player,
-			message: msg
-		})
-	}
+	});
 
-	dispatch.hook('C_CHAT', 1, event => {
-		if(/^<FONT>!mpots<\/FONT>$/i.test(event.message)) {
-			if(!enabled) {
-				enabled = true
-				message('Manapotter <font color="#56B4E9">enabled</font>.')
-				console.log('Manapotter enabled.')
-			}
-			else {
-				enabled = false
-				message('Manapotter <font color="#E69F00">disabled</font>.')
-				console.log('Manapotter disabled.')
-			}
-			return false
-		}
-	})
 }
