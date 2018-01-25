@@ -1,11 +1,9 @@
-const HIGHUSEJOBS = [0,1,4,8] // WARR LANC SORC REAPER, ADD YOUR CLASS JOB # IF YOU WANT THE HIGHER THRESHOLD TO TRIGGER
-const MPCD = 10000; // in ms
 const Command = require('command');
 
 module.exports = function Manapotter(dispatch) {
 
-	const command = Command(dispatch);
 	let cid = null,
+		ratio = 0.5,
 		player = '',
 		cooldown = false,
 		enabled = true,
@@ -15,33 +13,15 @@ module.exports = function Manapotter(dispatch) {
 		inbattleground,
 		alive,
 		inCombat,
-		job,
-		highUse = false,
-		sorc = false,
-		ratio = 0.5,
-		curMp = null,
-		maxMp = null,
-		threshold = 0,
-		isSet = false;
-
+		location;
 
 	// #############
 	// ### Magic ###
 	// #############
 
 	dispatch.hook('S_LOGIN', 1, event => {
-		({cid, model} = event)
+		({cid} = event)
 		player = event.name
-		job = (model - 10101) % 100;
-		if (job == 4) {
-			sorc = true;
-		} else if (HIGHUSEJOBS.includes(job)) {
-			highUse = true;
-			sorc = false;
-		} else {
-			highUse = false;
-			sorc = false;
-		}
 		enabled = true
 	})
 
@@ -55,39 +35,18 @@ module.exports = function Manapotter(dispatch) {
 			cooldown = true
 			setTimeout(() => {
 				cooldown = false
-				checkMp();
-			}, MPCD)
+			}, thiscooldown*1000)
 		}
 	})
 
 	dispatch.hook('S_PLAYER_CHANGE_MP', 1, event => {
+		currentMp = event.currentMp
+		maxMp = event.maxMp
 
-		if (event.target.equals(cid)) {
-			curMp = event.curMp;
-			maxMp = event.maxMp;
-			if (enabled) checkMp();
+		if(!cooldown && event.target.equals(cid) && (currentMp <= maxMp*ratio)) {
+			useItem()
 		}
-
 	})
-
-	function checkMp() {
-
-		if (!isSet) {
-			
-			threshold = maxMp / 2;
-			if (sorc) threshold = maxMp - 1600;
-			else if (highUse) threshold = maxMp - 1000;
-			else threshold = maxMp * ratio;
-
-			isSet = true;
-		}
-
-
-		if (!cooldown && curMp <= threshold) {
-			useItem();
-		}
-
-	}
 
 	function useItem() {
 		if (!enabled) return
@@ -124,7 +83,6 @@ module.exports = function Manapotter(dispatch) {
 		onmount = false
 		incontract = false
 		inbattleground = event.zone == battleground
-		isSet = false;
 	})
 
 	dispatch.hook('S_SPAWN_ME', 1, event => {
@@ -161,8 +119,27 @@ module.exports = function Manapotter(dispatch) {
 	// ### Chat Hook ###
 	// #################
 
-	command.add('mPots', (arg) => {
+	command.add('mpMode', (arg) => {
 		switch (arg) {
+			case 'sorc':
+				ratio = 0.875;
+				break;
+			case 'high':
+				ratio = 0.75;
+				break;
+			case 'normal':
+				ratio = 0.5;
+				break;
+			// experimental, set your own value
+			default:
+				ratio = parseFloat(arg);
+				break;
+		} command.message('MpPotter mode set to ' + arg + '.');
+	});
+
+	command.add('mpots', (arg) => {
+		switch (arg) {
+			// enable/disable
 			case 'on':
 				enabled = true;
 				break;
@@ -173,7 +150,6 @@ module.exports = function Manapotter(dispatch) {
 				enabled = !enabled;
 				break;
 		} command.message('Manapotter ' + (enabled ? 'enabled' : 'disabled') + '.');
-
 	});
 
 }
