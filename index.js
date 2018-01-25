@@ -2,6 +2,7 @@ const Command = require('command');
 
 module.exports = function Manapotter(dispatch) {
 
+	const command = Command(dispatch);
 	let cid = null,
 		ratio = 0.5,
 		player = '',
